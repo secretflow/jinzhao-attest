@@ -1,0 +1,50 @@
+build --incompatible_new_actions_api=false 
+build --copt=-fdiagnostics-color=always
+
+# static link libstdc++ & libgcc; build-id=none disable build id in ELF.
+build --action_env=BAZEL_LINKOPTS=-static-libstdc++:-static-libgcc
+build --action_env=BAZEL_LINKLIBS=-l%:libstdc++.a:-l%:libgcc.a
+
+# build for sgx2
+build --define tee_type=sgx2
+# build with fpic
+build --force_pic
+
+# using std17
+build --cxxopt=-std=c++17
+build --host_cxxopt=-std=c++17
+
+build:asan --strip=never
+build:asan --copt -fno-sanitize-recover=all
+build:asan --copt -fsanitize=address
+build:asan --copt -Og
+build:asan --copt -g
+build:asan --copt -fno-omit-frame-pointer
+build:asan --linkopt -fsanitize=address
+
+build:ubsan --strip=never
+build:ubsan --copt -fno-sanitize-recover=all
+build:ubsan --copt -fsanitize=undefined
+build:ubsan --copt -Og
+build:ubsan --copt -g
+build:ubsan --copt -fno-omit-frame-pointer
+build:ubsan --linkopt -fsanitize=undefined
+
+test --keep_going
+test --test_output=errors
+
+test:asan --strip=never
+test:asan --copt -fno-sanitize-recover=all
+test:asan --copt -fsanitize=address
+test:asan --copt -O0
+test:asan --copt -g
+test:asan --copt -fno-omit-frame-pointer
+test:asan --linkopt -fsanitize=address
+
+test:ubsan --strip=never
+test:ubsan --copt -fno-sanitize-recover=all
+test:ubsan --copt -fsanitize=undefined
+test:ubsan --copt -O0
+test:ubsan --copt -g
+test:ubsan --copt -fno-omit-frame-pointer
+test:ubsan --linkopt -fsanitize=undefined

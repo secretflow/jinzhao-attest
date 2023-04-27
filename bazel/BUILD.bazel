@@ -1,0 +1,22 @@
+package(default_visibility = ["//visibility:public"])
+
+config_setting(
+    name = "with_boringssl",
+    values = {"define": "ssl=boringssl"},
+)
+
+alias(
+    name = "ssl",
+    actual = select({
+        ":with_boringssl": "@boringssl//:ssl",
+        "//conditions:default": "@com_github_openssl_openssl//:openssl",
+    }),
+)
+
+alias(
+    name = "crypto",
+    actual = select({
+        ":with_boringssl": "@boringssl//:ssl",
+        "//conditions:default": "@com_github_openssl_openssl//:openssl",
+    }),
+)

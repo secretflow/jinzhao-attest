@@ -2,3 +2,4 @@ build
 release
 .vscode
 deployment/conf/unified_attestation.json.signed
+bazel-*
