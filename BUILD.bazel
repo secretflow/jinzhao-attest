@@ -140,7 +140,7 @@ cc_library(
     deps = [
         ":cc_attestation_proto",
         ":cppcodec",
-        ":rapidjson",
+        "@com_github_rapidjson//:rapidjson",
         ":sgx_headers",
         "@com_github_openssl_openssl//:openssl",
         "@com_github_grpc_grpc//:grpc++",
@@ -168,7 +168,7 @@ cc_library(
     ]),
     visibility = ["//visibility:public"],
     deps = [
-        ":rapidjson",
+        "com_github_rapidjson//:rapidjson",
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
     ],
