@@ -84,7 +84,7 @@ occlum_cc_library(
         ":sgx_headers",
         "@com_github_openssl_openssl//:openssl",
         "@com_github_rapidjson//:rapidjson",
-        "@cppcodec:cppcodec",
+        "@cppcodec",
     ],
 )
 
@@ -106,7 +106,7 @@ occlum_cc_library(
         "ual/verification/platforms/sgx2/qvl/**/*.cpp",
     ]),
     deps = [
-        ":rapidjson",
+        "@com_github_rapidjson//:rapidjson",
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
     ],

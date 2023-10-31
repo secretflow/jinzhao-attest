@@ -139,7 +139,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":cc_attestation_proto",
-        ":cppcodec",
+        "@cppcodec",
         "@com_github_rapidjson//:rapidjson",
         ":sgx_headers",
         "@com_github_openssl_openssl//:openssl",
@@ -168,7 +168,7 @@ cc_library(
     ]),
     visibility = ["//visibility:public"],
     deps = [
-        "com_github_rapidjson//:rapidjson",
+        "@com_github_rapidjson//:rapidjson",
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
     ],
@@ -237,24 +237,6 @@ cc_library(
     hdrs = glob(["ual/include/sgx/**/*.h"]),
     copts = ["-DENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/include/sgx",
-)
-
-cc_library(
-    name = "cppcodec",
-    hdrs = glob([
-        "ual/include/cppcodec/**/*.hpp",
-    ]),
-    strip_include_prefix = "ual/include",
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "rapidjson",
-    hdrs = glob([
-        "ual/include/rapidjson/**/*.h",
-    ]),
-    strip_include_prefix = "ual/include",
-    visibility = ["//visibility:public"],
 )
 
 cc_proto_library(
