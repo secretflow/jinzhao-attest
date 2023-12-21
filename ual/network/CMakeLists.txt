@@ -10,6 +10,7 @@ file(GLOB UTILS_SRCS ${UAL_TOP_DIR}/utils/untrusted/*.cpp)
 file(GLOB NETWORK_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 file(GLOB IAS_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/ias/*.cpp)
 file(GLOB PCCS_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/pccs/*.cpp)
+file(GLOB HYGON_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/hygon/*.cpp)
 file(GLOB UAS_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/uas/*.cpp)
 
 # Build the ua_ugeneration library
@@ -21,6 +22,7 @@ set(U_SRCS
     ${NETWORK_SRCS}
     ${IAS_SRCS}
     ${PCCS_SRCS}
+    ${HYGON_SRCS}
     ${UAS_SRCS}
 )
 
@@ -50,7 +52,7 @@ target_include_directories(
     ${OPENSSL_INC_DIR}
 )
 
-set(U_LIBS "-lcurl -lprotobuf -lcrypto")
+set(U_LIBS "-lcurl -lprotobuf -lssl -lcrypto")
 if(TEE_TYPE STREQUAL "SGX2" AND ENV_TYPE STREQUAL "SGXSDK")
     list(APPEND U_LIBS "-lsgx_dcap_ql -lsgx_quote_ex")
 endif()

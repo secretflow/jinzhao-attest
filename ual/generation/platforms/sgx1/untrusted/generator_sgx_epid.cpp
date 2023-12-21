@@ -10,16 +10,16 @@
 
 #include "attestation/common/bytes.h"
 #include "attestation/common/log.h"
-#include "attestation/common/platforms/sgx_report_body.h"
 #include "attestation/common/protobuf.h"
 #include "attestation/common/rsa.h"
 #include "attestation/common/type.h"
+#include "attestation/platforms/sgx_report_body.h"
 #include "attestation/verification/ua_verification.h"
 
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
 #include "generation/platforms/sgx_common/untrusted/untrusted_sgx_common_ecall.h"
 #endif
-#ifdef ENV_TYPE_OCCLUM
+#ifdef UA_ENV_TYPE_OCCLUM
 #include "attestation/instance/trusted_tee_instance.h"
 #endif
 
@@ -48,7 +48,7 @@ TeeErrorCode AttestationGeneratorSgxEpid::Initialize(
   return TEE_SUCCESS;
 }
 
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
 // Initialize the quote enclave and get the gid for IAS sigRL
 // and the target_info for sgx_create_report
 TeeErrorCode AttestationGeneratorSgxEpid::InitTargetInfo() {
@@ -76,7 +76,7 @@ TeeErrorCode AttestationGeneratorSgxEpid::GetSgxReport(
   // Prepare report data
   sgx_report_data_t report_data;
   size_t len = sizeof(sgx_report_data_t);
-  TEE_CHECK_RETURN(PrepareSgxReportData(param, report_data.d, len));
+  TEE_CHECK_RETURN(PrepareReportData(param, report_data.d, len));
 
   // Create the sgx report in enclave side
   TeeErrorCode ret = TEE_ERROR_GENERIC;
@@ -91,7 +91,7 @@ TeeErrorCode AttestationGeneratorSgxEpid::GetSgxReport(
   }
 
   // save the attester attributes
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(&(p_report->body), &attributes_));
   attributes_.set_hex_spid(hex_spid);
@@ -182,7 +182,7 @@ TeeErrorCode AttestationGeneratorSgxEpid::GetSgxQuote(
 }
 #endif
 
-#ifdef ENV_TYPE_OCCLUM
+#ifdef UA_ENV_TYPE_OCCLUM
 // For Occlum LibOS environment
 TeeErrorCode AttestationGeneratorSgxEpid::SgxDeviceGetGroupID() {
   // sgx_init_quote will be called in ioctl handler
@@ -253,11 +253,10 @@ TeeErrorCode AttestationGeneratorSgxEpid::GetSgxQuote(
   // Prepare quote_args.report_data
   sgx_report_data_t report_data = {0};
   size_t len = sizeof(sgx_report_data_t);
-  TEE_CHECK_RETURN(PrepareSgxReportData(param, report_data.d, len));
+  TEE_CHECK_RETURN(PrepareReportData(param, report_data.d, len));
   // Replace the higher 32 bytes by HASH UAK public key
-  const std::string& ua_public_key = UakPublic();
-  if (!ua_public_key.empty()) {
-    kubetee::common::DataBytes pubkey(ua_public_key);
+  if (param.others.pem_public_key().empty() && !UakPublic().empty()) {
+    kubetee::common::DataBytes pubkey(UakPublic());
     pubkey.ToSHA256().Export(report_data.d + kSha256Size, kSha256Size).Void();
   }
   std::memcpy(RCAST(void*, quote_args.report_data.d),
@@ -312,7 +311,7 @@ TeeErrorCode AttestationGeneratorSgxEpid::GetSgxQuote(
 
   // Parse the attester attributes
   sgx_quote_t* pquote = quote_args.quote.as_quote;
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(&(pquote->report_body), &attributes_));
   attributes_.set_hex_spid(hex_spid);
@@ -386,21 +385,6 @@ TeeErrorCode AttestationGeneratorSgxEpid::CreatePassportReport(
   report->set_str_report_type(kUaReportTypePassport);
   TEE_CHECK_RETURN(IasFetchReport(quote_b64, report->mutable_json_report()));
 
-  return TEE_SUCCESS;
-}
-
-TeeErrorCode AttestationGeneratorSgxEpid::VerifySubReportsTrusted(
-
-    const kubetee::UnifiedAttestationAuthReports& auth_reports,
-    const kubetee::UnifiedAttestationPolicy& policy,
-    std::string* results_json) {
-#ifdef ENV_TYPE_SGXSDK
-  std::string tee_identity = std::to_string(enclave_id_);
-  TEE_CHECK_RETURN(
-      SgxVerifySubReports(tee_identity, auth_reports, policy, results_json));
-#else
-  TEE_CHECK_RETURN(UaVerifySubReports(auth_reports, policy, results_json));
-#endif
   return TEE_SUCCESS;
 }
 

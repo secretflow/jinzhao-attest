@@ -1,7 +1,7 @@
 #include <string>
 
-#include "./sgx_utils.h"
 #include "./sgx_edger8r.h"
+#include "./sgx_utils.h"
 
 #include "attestation/common/error.h"
 #include "attestation/common/log.h"
@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#ifdef TEE_TYPE_HYPERENCLAVE
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
 static size_t GetSharedBufFreeSize() {
   const size_t OCALL_SIZE = 8 * sizeof(size_t);
   size_t free_size = sgx_ocremain_size();
@@ -95,7 +95,7 @@ TeeErrorCode ecall_TeeRun(const char* params_buf,
 
   // check and register functions firstly if they are not registered
   using kubetee::attestation::TeeUnifiedFunctions;
-  TeeUnifiedFunctions& tufm = TeeUnifiedFunctions::Mgr(); 
+  TeeUnifiedFunctions& tufm = TeeUnifiedFunctions::Mgr();
   TEE_CHECK_RETURN(tufm.RegisterFunctions());
 
   // Check the tee_identity in function params
@@ -124,7 +124,7 @@ TeeErrorCode ecall_TeeRun(const char* params_buf,
   // Allocate the untrusted memory to return the response
   // !!! Need to free outside of enclave
   size_t res_size = res_str.size();
-  if (res_size > 2) { // ignore empty json string '{}'
+  if (res_size > 2) {  // ignore empty json string '{}'
     ELOG_DEBUG("UntrustedMemoryAlloc size: %ld", res_size);
     sgx_status_t sc = SGX_ERROR_UNEXPECTED;
     TeeErrorCode ret = TEE_ERROR_GENERIC;
@@ -133,7 +133,7 @@ TeeErrorCode ecall_TeeRun(const char* params_buf,
       ELOG_ERROR("Fail to allocate untrusted memory: len=%ld", res_size);
       return TEE_ERROR_MERGE(ret, sc);
     }
-#ifdef TEE_TYPE_HYPERENCLAVE
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
     // For hyperenclave msbuf mode, cannot read untrusted address directly
     TEE_CHECK_RETURN(UntrustedWriteBuf(*res_buf, res_str.data(), res_size));
 #else
@@ -167,7 +167,6 @@ TeeErrorCode ecall_UaGetPublicKey(char* public_key_buf,
   *publc_key_len = public_key.size();
   return TEE_SUCCESS;
 }
-
 
 #ifdef __cplusplus
 }

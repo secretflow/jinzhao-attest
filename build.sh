@@ -37,7 +37,7 @@ EXIT_ERROR() {
 }
 
 get_tee_environment() {
-    if [ -e "/dev/jailhouse" ] ; then
+    if [ -e "/dev/jailhouse" -o -e "/dev/hyperenclave" ] ; then
         echo -ne "HYPERENCLAVE"
     elif [ -e "/dev/sgx_enclave" -o -e "/dev/sgx/enclave" ] ; then
         echo -ne "SGX2"
@@ -94,7 +94,9 @@ do_compile() {
 
     # If there is TEE hardware, set a build flag for this case
     # But for occlum, we deal with it like normal no-tee envrionment.
-    [ "$OPT_TEE_TYPE" == "NONE" -o "$OPT_ENV_TYPE" == "OCCLUM" ] && has_tee="OFF"
+    [ "$OPT_TEE_TYPE" == "NONE" ] && has_tee="OFF"
+    [ "$OPT_ENV_TYPE" == "OCCLUM" ] && has_tee="OFF"
+    [ "$OPT_ENV_TYPE" == "VMTEE" ] && has_tee="OFF"
 
     # Need to prepare the occlum dependencies
     if [ "$OPT_ENV_TYPE" == "OCCLUM" ] ; then

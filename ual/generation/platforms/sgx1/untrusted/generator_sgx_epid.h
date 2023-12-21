@@ -12,7 +12,7 @@
 
 #include "attestation/generation/core/generator_interface.h"
 
-#ifdef ENV_TYPE_OCCLUM  // For Occlum LibOS environment
+#ifdef UA_ENV_TYPE_OCCLUM  // For Occlum LibOS environment
 
 #define SGXIOC_GET_EPID_GROUP_ID _IOR('s', 1, sgx_epid_group_id_t)
 #define SGXIOC_GEN_QUOTE _IOWR('s', 2, sgxioc_gen_epid_quote_arg_t)
@@ -46,7 +46,7 @@ typedef struct {
   } quote;  // output
 } sgxioc_gen_epid_quote_arg_t;
 
-#endif  // ENV_TYPE_OCCLUM
+#endif  // UA_ENV_TYPE_OCCLUM
 
 namespace kubetee {
 namespace attestation {
@@ -62,18 +62,14 @@ class AttestationGeneratorSgxEpid : public AttestationGeneratorInterface {
                                    UnifiedAttestationReport* report) override;
   TeeErrorCode CreatePassportReport(const UaReportGenerationParameters& param,
                                     UnifiedAttestationReport* report) override;
-  TeeErrorCode VerifySubReportsTrusted(
-      const kubetee::UnifiedAttestationAuthReports& auth_reports,
-      const kubetee::UnifiedAttestationPolicy& policy,
-      std::string* results_json) override;
 
  private:
   // internal functions
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
   TeeErrorCode GetSgxReport(const UaReportGenerationParameters& param,
                             sgx_report_t* p_report);
 #endif
-#ifdef ENV_TYPE_OCCLUM
+#ifdef UA_ENV_TYPE_OCCLUM
   TeeErrorCode SgxDeviceGetGroupID();
   TeeErrorCode SgxDeviceGetQuote(sgxioc_gen_epid_quote_arg_t* quote_args);
 #endif
@@ -88,7 +84,7 @@ class AttestationGeneratorSgxEpid : public AttestationGeneratorInterface {
   TeeErrorCode IasFetchReport(const std::string& quote_b64,
                               std::string* ias_report_serialized_b64);
 
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
   sgx_target_info_t target_info_;
 #endif
   sgx_epid_group_id_t gid_;

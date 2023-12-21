@@ -44,11 +44,20 @@ TeeErrorCode ecall_UaGenerateReport(const char* report_identity,
     memcpy(report_data->d, hex_report_data.data(), hex_report_data.size());
   }
 
-  // Replace the higher 32 bytes by HASH UAK public key
-  const std::string& ua_public_key = UakPublic();
-  if (!ua_public_key.empty()) {
-    kubetee::common::DataBytes pubkey(ua_public_key);
-    pubkey.ToSHA256().Export(report_data->d + kSha256Size, kSha256Size).Void();
+  // Replace the higher 32 bytes by HASH UAK public key if not specified
+  kubetee::common::DataBytes report_data_pubkey(report_data->d + kSha256Size,
+                                                kSha256Size);
+  std::string empty_pubkey =
+      "00000000000000000000000000000000"
+      "00000000000000000000000000000000";
+  if (report_data_pubkey.ToHexStr().GetStr() == empty_pubkey) {
+    const std::string& ua_public_key = UakPublic();
+    if (!ua_public_key.empty()) {
+      kubetee::common::DataBytes pubkey(ua_public_key);
+      pubkey.ToSHA256()
+          .Export(report_data->d + kSha256Size, kSha256Size)
+          .Void();
+    }
   }
 
   // create the enclave report with target info and report_data
@@ -77,13 +86,13 @@ TeeErrorCode ecall_UaGenerateReport(const char* report_identity,
   } else {
     attester_attr.set_bool_debug_disabled("true");
   }
-#ifdef TEE_TYPE_HYPERENCLAVE
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
   attester_attr.set_str_tee_platform(kUaPlatformHyperEnclave);
 #endif
-#ifdef TEE_TYPE_SGX2
+#ifdef UA_TEE_TYPE_SGX2
   attester_attr.set_str_tee_platform(kUaPlatformSgxDcap);
 #endif
-#ifdef TEE_TYPE_SGX1
+#ifdef UA_TEE_TYPE_SGX1
   attester_attr.set_str_tee_platform(kUaPlatformSgxEpid);
 #endif
   TEE_CHECK_RETURN(TeeInstanceSaveEnclaveInfo(attester_attr, report_identity));
@@ -110,28 +119,6 @@ TeeErrorCode ecall_UaVerifyReport(sgx_target_info_t* target_info,
   }
 
   ELOG_DEBUG("Success to verify the target report");
-  return TEE_SUCCESS;
-}
-
-TeeErrorCode ecall_UaVerifySubReorts(const char* auth_reports_json,
-                                     const char* policy_json,
-                                     char* nested_report_json,
-                                     int nested_report_max,
-                                     int* nested_report_len) {
-  TEE_CHECK_VALIDBUF(nested_report_json, nested_report_max);
-  kubetee::UnifiedAttestationAuthReports auth_reports;
-  kubetee::UnifiedAttestationPolicy policy;
-  JSON2PB(SAFESTR(auth_reports_json), &auth_reports);
-  JSON2PB(SAFESTR(policy_json), &policy);
-  std::string nested_reports_str;
-  TEE_CHECK_RETURN(
-      UaVerifySubReports(auth_reports, policy, &nested_reports_str));
-  if (SCAST(size_t, nested_report_max) <= nested_reports_str.size()) {
-    ELOG_ERROR("Too smaller nested report ecall buffer");
-    return TEE_ERROR_RA_VERIFY_NESTED_REPORTS_SMALLER_BUFFER1;
-  }
-  *nested_report_len = nested_reports_str.size();
-  memcpy(nested_report_json, nested_reports_str.data(), *nested_report_len);
   return TEE_SUCCESS;
 }
 

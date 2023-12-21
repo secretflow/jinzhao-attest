@@ -45,6 +45,90 @@ TeeErrorCode AttestationVerifierInterface::Verify(
   return TEE_SUCCESS;
 }
 
+// Verfiy the policy, the actual policy must be stricter than expected policy
+TeeErrorCode AttestationVerifierInterface::VerifyPolicy(
+    const kubetee::UnifiedAttestationPolicy& actual_policy,
+    const kubetee::UnifiedAttestationPolicy& expected_policy) {
+  // policy.pem_public_key
+  if (!IsHashEqual(kUaAttrPublickey, expected_policy.pem_public_key(),
+                   actual_policy.pem_public_key())) {
+    return TEE_ERROR_RA_VERIFY_ATTR_PUBKEY;
+  }
+
+  // policy.main_attributes
+  size_t main_actual_size = actual_policy.main_attributes_size();
+  size_t main_expected_size = expected_policy.main_attributes_size();
+  if (main_actual_size > main_expected_size) {
+    ELOG_ERROR("Verify policy: more actual main attr size: %d/%d",
+               main_actual_size, main_expected_size);
+    return TEE_ERROR_RA_VERIFY_POLICY_MAIN_ATTR_SIZE;
+  }
+  for (int i = 0; i < main_actual_size; i++) {
+    for (int j = 0; j < main_expected_size; j++) {
+      // All expected pass means the actual policy
+      // is more stricter than expected policy
+      if (TEE_SUCCESS !=
+          VerifyAttributes(actual_policy.main_attributes()[i],
+                           expected_policy.main_attributes()[j])) {
+        ELOG_ERROR("Verify policy: fail to verify main attributes");
+        return TEE_ERROR_RA_VERIFY_ATTR;
+      }
+    }
+  }
+
+  // policy.nested_policies.str_group_name/str_group_id
+  const kubetee::UnifiedAttestationNestedPolicies& actual_nested_policies =
+      actual_policy.nested_policies();
+  const kubetee::UnifiedAttestationNestedPolicies& expected_nested_policies =
+      expected_policy.nested_policies();
+  if (!IsStrEqual(kUaNestedGroupName, expected_nested_policies.str_group_name(),
+                  actual_nested_policies.str_group_name())) {
+    return TEE_ERROR_RA_VERIFY_NESTED_GROUP_NAME;
+  }
+  if (!IsStrEqual(kUaNestedGroupID, expected_nested_policies.str_group_id(),
+                  actual_nested_policies.str_group_id())) {
+    return TEE_ERROR_RA_VERIFY_NESTED_GROUP_ID;
+  }
+
+  // policy.nested_policies.policies
+  size_t sub_actual_size = actual_nested_policies.policies_size();
+  size_t sub_expected_size = expected_nested_policies.policies_size();
+  if (sub_actual_size != sub_expected_size) {
+    ELOG_ERROR("Verify policy: mismatch submodules size: %d/%d",
+               sub_actual_size, sub_expected_size);
+    return TEE_ERROR_RA_VERIFY_POLICY_SUB_SIZE;
+  }
+
+  // policy.nested_policies.policies.sub_attributes
+  for (int k = 0; k < sub_actual_size; k++) {
+    const kubetee::UnifiedAttestationNestedPolicy& actual_nested_policy =
+        actual_nested_policies.policies()[k];
+    const kubetee::UnifiedAttestationNestedPolicy& expected_nested_policy =
+        expected_nested_policies.policies()[k];
+    size_t actual_attr_size = actual_nested_policy.sub_attributes_size();
+    size_t expected_attr_size = expected_nested_policy.sub_attributes_size();
+    if (actual_attr_size > expected_attr_size) {
+      ELOG_ERROR("Verify policy: more actual sub attr size: %d/%d",
+                 actual_attr_size, expected_attr_size);
+      return TEE_ERROR_RA_VERIFY_POLICY_SUB_ATTR_SIZE;
+    }
+    for (int i = 0; i < actual_attr_size; i++) {
+      for (int j = 0; j < expected_attr_size; j++) {
+        // All expected pass means the actual policy
+        // is more stricter than expected policy
+        if (TEE_SUCCESS !=
+            VerifyAttributes(actual_nested_policy.sub_attributes()[i],
+                             expected_nested_policy.sub_attributes()[j])) {
+          ELOG_ERROR("Verify policy: fail to verify sub attributes");
+          return TEE_ERROR_RA_VERIFY_ATTR;
+        }
+      }
+    }
+  }
+
+  return TEE_SUCCESS;
+}
+
 TeeErrorCode AttestationVerifierInterface::VerifyMainAttester(
     const kubetee::UnifiedAttestationPolicy& policy) {
   TeeErrorCode ret = TEE_ERROR_RA_VERIFY_RULE_ENTRY_EMPTY;
@@ -64,11 +148,14 @@ TeeErrorCode AttestationVerifierInterface::VerifyMainAttester(
   return ret;
 }
 
+/// @brief Verify the json_nested_reports in UnifiedAttestationReport
+/// @param policy is the whole policy for whole report.
+/// @return TEE_SUCCESS or other error code
 TeeErrorCode AttestationVerifierInterface::VerifyNestedReports(
     const kubetee::UnifiedAttestationPolicy& policy) {
   // If there is no submodules, and don't expect submodule enclaves
-  if (nested_reports_.json_nested_results().empty() &&
-      (policy.nested_policies_size() == 0)) {
+  size_t policies_size = policy.nested_policies().policies_size();
+  if (nested_reports_.json_nested_results().empty() && (policies_size == 0)) {
     ELOG_DEBUG("Do not need to verify submodule attesters");
     return TEE_SUCCESS;
   }
@@ -76,15 +163,26 @@ TeeErrorCode AttestationVerifierInterface::VerifyNestedReports(
   // Check the expect submodule attesters size and the nested policy size
   kubetee::UnifiedAttestationNestedResults nested_results;
   JSON2PB(nested_reports_.json_nested_results(), &nested_results);
-  if (nested_results.results_size() != policy.nested_policies_size()) {
-    ELOG_ERROR("Has %d submodule attesters but expect %d",
-               nested_results.results_size(), policy.nested_policies_size());
+  size_t results_size = nested_results.results_size();
+  if (results_size != policies_size) {
+    ELOG_ERROR("Nested size mismatch: %d/%d", results_size, policies_size);
     return TEE_ERROR_RA_VERIFY_NESTED_ATTESTERS_SIZE;
   }
-  ELOG_DEBUG("There are %d submodule attester", nested_results.results_size());
+  ELOG_DEBUG("There are %d submodule attester", results_size);
 
-  // Verify the submodules report signature
-  // by public key in UnifiedAttestationPolicy
+  // Check the group name and ID if they are existed in policy
+  const kubetee::UnifiedAttestationNestedPolicies& nested_policies =
+      policy.nested_policies();
+  if (!IsStrEqual(kUaNestedGroupName, nested_policies.str_group_name(),
+                  nested_results.str_group_name())) {
+    return TEE_ERROR_RA_VERIFY_NESTED_GROUP_NAME;
+  }
+  if (!IsStrEqual(kUaNestedGroupID, nested_policies.str_group_id(),
+                  nested_results.str_group_id())) {
+    return TEE_ERROR_RA_VERIFY_NESTED_GROUP_ID;
+  }
+
+  // Verify the submodules report signature by public key in policy
   kubetee::common::DataBytes signature(nested_reports_.b64_nested_signature());
   if (kubetee::common::RsaCrypto::Verify(
           policy.pem_public_key(), nested_reports_.json_nested_results(),
@@ -93,12 +191,12 @@ TeeErrorCode AttestationVerifierInterface::VerifyNestedReports(
   }
 
   // Verify nested attester one by one, assume the order must be the same
-  for (int i = 0; i < policy.nested_policies_size(); i++) {
+  for (int i = 0; i < policies_size; i++) {
     ELOG_DEBUG("Verify submodule enclave [%d]", i);
     const kubetee::UnifiedAttestationAttributes& attester_attrs =
-        nested_results.results()[i];
+        nested_results.results()[i].result();
     const kubetee::UnifiedAttestationNestedPolicy& nested_policy =
-        policy.nested_policies()[i];
+        policy.nested_policies().policies()[i];
     // Each nested attester has a list of attribtes set
     TeeErrorCode ret = TEE_ERROR_RA_VERIFY_NESTED_GENERIC;
     for (int j = 0; j < nested_policy.sub_attributes_size(); j++) {
@@ -147,6 +245,14 @@ TeeErrorCode AttestationVerifierInterface::VerifyAttributes(
                   actual.hex_boot_measurement())) {
     return TEE_ERROR_RA_VERIFY_ATTR_BOOT_MEASUREMENT;
   }
+  if (!IsStrEqual(kUaAttrTeeName, expected.str_tee_name(),
+                  actual.str_tee_name())) {
+    return TEE_ERROR_RA_VERIFY_ATTR_TEE_NAME;
+  }
+  if (!IsStrEqual(kUaAttrTeeID, expected.str_tee_identity(),
+                  actual.str_tee_identity())) {
+    return TEE_ERROR_RA_VERIFY_ATTR_TEE_IDENTITY;
+  }
   if (!IsStrEqual(kUaAttrMrTa, expected.hex_ta_measurement(),
                   actual.hex_ta_measurement())) {
     return TEE_ERROR_RA_VERIFY_ATTR_TA_MEASUREMENT;
@@ -181,10 +287,12 @@ TeeErrorCode AttestationVerifierInterface::VerifyAttributes(
   if (!IsStrMatch(kUaAttrNonce, expected.hex_nonce(), actual.hex_nonce())) {
     return TEE_ERROR_RA_VERIFY_ATTR_NONCE;
   }
-  if (verify_spid_) {
-    if (!IsStrEqual(kUaAttrSpid, expected.hex_spid(), actual.hex_spid())) {
-      return TEE_ERROR_RA_VERIFY_ATTR_SPID_NAME;
-    }
+  if (!IsStrEqual(kUaAttrSpid, expected.hex_spid(), actual.hex_spid())) {
+    return TEE_ERROR_RA_VERIFY_ATTR_SPID_NAME;
+  }
+  if (!IsIntNotLess(kUaAttrVerifiedTime, expected.str_verified_time(),
+                    actual.str_verified_time())) {
+    return TEE_ERROR_RA_VERIFY_ATTR_VERIFIED_TIME;
   }
 
   return TEE_SUCCESS;
@@ -197,6 +305,8 @@ TeeErrorCode AttestationVerifierInterface::ShowAttesterAttributes() {
   ShowAttr(kUaAttrSecureFlags, attributes_.hex_secure_flags());
   ShowAttr(kUaAttrMrplatform, attributes_.hex_platform_measurement());
   ShowAttr(kUaAttrMrboot, attributes_.hex_boot_measurement());
+  ShowAttr(kUaAttrTeeName, attributes_.str_tee_name());
+  ShowAttr(kUaAttrTeeID, attributes_.str_tee_identity());
   ShowAttr(kUaAttrMrTa, attributes_.hex_ta_measurement());
   ShowAttr(kUaAttrMrTaDyn, attributes_.hex_ta_dyn_measurement());
   ShowAttr(kUaAttrSigner, attributes_.hex_signer());
@@ -207,7 +317,20 @@ TeeErrorCode AttestationVerifierInterface::ShowAttesterAttributes() {
   ShowAttr(kUaAttrPublickey, attributes_.hex_hash_or_pem_pubkey());
   ShowAttr(kUaAttrNonce, attributes_.hex_nonce());
   ShowAttr(kUaAttrSpid, attributes_.hex_spid());
+  ShowAttr(kUaAttrVerifiedTime, attributes_.str_verified_time());
   return TEE_SUCCESS;
+}
+
+bool AttestationVerifierInterface::IsRequired(const char* name,
+                                              const bool required) {
+  if (required) {
+    ELOG_ERROR("[VERIFY] %s: empty, but required!", name);
+    return false;
+  } else {
+    // If it is not must required, and valued expected is empty, ignore it
+    ELOG_DEBUG("[VERIFY] %s: empty, be careful!", name);
+    return true;
+  }
 }
 
 bool AttestationVerifierInterface::IsStrEqual(const std::string& item_name,
@@ -215,21 +338,17 @@ bool AttestationVerifierInterface::IsStrEqual(const std::string& item_name,
                                               const std::string& actual_value,
                                               const bool required) {
   if (expected_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it is not must required, and valued expected is empty, ignore it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
-  } else if (expected_value != actual_value) {
+    return IsRequired(item_name.c_str(), required);
+  }
+
+  if (expected_value != actual_value) {
     // If it's not empty but mismatch
     ELOG_ERROR("[VERIFY] %s: String not equal", item_name.c_str());
     ELOG_DEBUG("    Actual  : %s", actual_value.c_str());
     ELOG_DEBUG("    Expected: %s", expected_value.c_str());
     return false;
   }
+
   ELOG_DEBUG("[VERIFY] %s: Success", item_name.c_str());
   return true;
 }
@@ -239,15 +358,10 @@ bool AttestationVerifierInterface::IsStrMatch(const std::string& item_name,
                                               const std::string& actual_value,
                                               const bool required) {
   if (expected_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it is not must required, and valued expected is empty, ignore it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
-  } else if (actual_value.find(expected_value) != 0) {
+    return IsRequired(item_name.c_str(), required);
+  }
+
+  if (actual_value.find(expected_value) != 0) {
     // If it's not empty but mismatch
     ELOG_ERROR("[VERIFY] %s: String not match", item_name.c_str());
     ELOG_DEBUG("    Actual total: %s", actual_value.c_str());
@@ -264,15 +378,10 @@ bool AttestationVerifierInterface::IsHashEqual(const std::string& item_name,
                                                const std::string& hash_value,
                                                const bool required) {
   if (plain_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it is not must required, and valued expected is empty, ignore it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
-  } else if (plain_value != hash_value) {
+    return IsRequired(item_name.c_str(), required);
+  }
+
+  if (plain_value != hash_value) {
     // Calculate the HASH value and compare to expeced value
     std::string hash_cal =
         kubetee::common::DataBytes::SHA256HexStr(plain_value);
@@ -296,14 +405,7 @@ bool AttestationVerifierInterface::IsBoolEqual(
     const std::string& actual_value,
     const bool required) {
   if (expected_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it's must required, and empty exepected, means don't care it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
+    return IsRequired(item_name.c_str(), required);
   }
 
   // Check actual_value and expected_value are the same bool value
@@ -326,23 +428,21 @@ bool AttestationVerifierInterface::IsHexIntEqual(
     const std::string& actual_value,
     const bool required) {
   if (expected_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it's must required, and empty exepected, means don't care it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
+    return IsRequired(item_name.c_str(), required);
   }
 
   // If it's not empty, check actual_value == expected_value
-  int64_t actual_int = std::stoi(actual_value);
-  int64_t expected_int = std::stoi(expected_value);
-  if (actual_int != expected_int) {
-    ELOG_ERROR("[VERIFY] %s: Value not equal", item_name.c_str());
-    ELOG_DEBUG("    Actual  : %s", actual_value.c_str());
-    ELOG_DEBUG("    Expected: %s", expected_value.c_str());
+  try {
+    int64_t actual_int = std::stoi(actual_value);
+    int64_t expected_int = std::stoi(expected_value);
+    if (actual_int != expected_int) {
+      ELOG_ERROR("[VERIFY] %s: Value not equal", item_name.c_str());
+      ELOG_DEBUG("    Actual  : %s", actual_value.c_str());
+      ELOG_DEBUG("    Expected: %s", expected_value.c_str());
+      return false;
+    }
+  } catch (std::exception& e) {
+    TEE_LOG_ERROR("Fail to convert string to int: %s", e.what());
     return false;
   }
 
@@ -356,14 +456,7 @@ bool AttestationVerifierInterface::IsIntNotLess(
     const std::string& actual_value,
     const bool required) {
   if (expected_value.empty()) {
-    if (required) {
-      ELOG_ERROR("[VERIFY] %s: empty, but required!", item_name.c_str());
-      return false;
-    } else {
-      // If it's must required, and empty exepected, means don't care it
-      ELOG_DEBUG("[VERIFY] %s: empty, be careful!", item_name.c_str());
-      return true;
-    }
+    return IsRequired(item_name.c_str(), required);
   }
 
   // If it's not empty, check actual_value >= expected_value

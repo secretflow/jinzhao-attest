@@ -19,12 +19,18 @@ endif()
 message("SGXSSL INC: ${SGXSSL_INCLUDE_DIR}")
 # Only support the following samples for static building
 add_subdirectory(unified-attestation-verification-untrusted)
+add_subdirectory(unified-attestation-instance-ree)
 if(BUILD_STATIC STREQUAL "OFF")
     add_subdirectory(unified-attestation-generation)
     add_subdirectory(unified-attestation-report-convert)
     if(HAS_TEE STREQUAL "ON")
-        add_subdirectory(unified-attestation-nested-report)
         add_subdirectory(unified-attestation-verification-trusted)
         add_subdirectory(unified-attestation-multi-threads)
     endif()
+endif()
+# Don't support the neste report sample in SGXSDK mode
+# Because we need to make sure nested result and signature
+# is generated in trusted code
+if(NOT ENV_TYPE STREQUAL "SGXSDK")
+    add_subdirectory(unified-attestation-nested-report)
 endif()

@@ -10,10 +10,10 @@
 #include "attestation/common/bytes.h"
 #include "attestation/common/error.h"
 #include "attestation/common/log.h"
-#include "attestation/common/platforms/sgx_report_body.h"
 #include "attestation/common/protobuf.h"
 #include "attestation/common/scope.h"
 #include "attestation/common/type.h"
+#include "attestation/platforms/sgx_report_body.h"
 
 #include "verification/uas/verifier_uas.h"
 
@@ -42,8 +42,6 @@ aptZvSJjcC7s7SKB+l0ttq0Na90iQrTISQIDAQAB
 
 TeeErrorCode AttestationVerifierUas::Initialize(
     const kubetee::UnifiedAttestationReport& report) {
-  verify_spid_ = false;
-
   // Parse the UAS report to get the report_body, attester attributes.
   JSON2PB(report.json_report(), &uas_report_);
   TEE_CHECK_RETURN(ParseUasReport(uas_report_));
@@ -143,7 +141,7 @@ TeeErrorCode AttestationVerifierUas::ParseQuoteSPID(sgx_quote_t* pquote) {
 TeeErrorCode AttestationVerifierUas::ParseQuoteReportBody(sgx_quote_t* pquote) {
   TEE_CHECK_NULLPTR(pquote);
   sgx_report_body_t* report_body = &(pquote->report_body);
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(report_body, &attributes_));
   return TEE_SUCCESS;

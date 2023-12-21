@@ -13,8 +13,8 @@
 #include "attestation/common/protobuf.h"
 #include "attestation/common/scope.h"
 #include "attestation/common/type.h"
+#include "attestation/platforms/csv.h"
 
-#include "verification/platforms/csv/csv.h"
 #include "verification/platforms/csv/csv_utils.h"
 #include "verification/platforms/csv/hygoncert.h"
 #include "verification/platforms/csv/verifier_csv.h"
@@ -27,7 +27,6 @@ TeeErrorCode AttestationVerifierCsv::Initialize(
   if (!report.json_nested_reports().empty()) {
     JSON2PB(report.json_nested_reports(), &nested_reports_);
   }
-  verify_spid_ = false;
   report_type_ = report.str_report_type();
 
   // Check the platform
@@ -97,10 +96,6 @@ TeeErrorCode AttestationVerifierCsv::ParseAttributes() {
   csv_attestation_report* report =
       RCAST(csv_attestation_report*, report_.data());
   uint32_t anonce = report->anonce;
-  kubetee::common::DataBytes pubkey(report->user_pubkey_digest.block,
-                                    HASH_BLOCK_SIZE);
-  TEE_CHECK_RETURN(RetrieveData(&pubkey, anonce));
-  attributes_.set_hex_hash_or_pem_pubkey(pubkey.ToHexStr().GetStr());
 
   kubetee::common::DataBytes vmid(report->vm_id, CSV_VM_ID_SIZE);
   TEE_CHECK_RETURN(RetrieveData(&vmid, anonce));
@@ -111,9 +106,14 @@ TeeErrorCode AttestationVerifierCsv::ParseAttributes() {
   attributes_.set_hex_platform_sw_version(vmversion.ToHexStr().GetStr());
 
   kubetee::common::DataBytes userdata(report->user_data,
-                                      CSV_ATTESTATION_USER_DATA_SIZE);
+                                      CSV_USED_USER_DATA_SIZE);
   TEE_CHECK_RETURN(RetrieveData(&userdata, anonce));
   attributes_.set_hex_user_data(userdata.ToHexStr().GetStr());
+
+  kubetee::common::DataBytes pubkey(report->user_data + CSV_USED_USER_DATA_SIZE,
+                                    HASH_BLOCK_SIZE);
+  TEE_CHECK_RETURN(RetrieveData(&pubkey, anonce));
+  attributes_.set_hex_hash_or_pem_pubkey(pubkey.ToHexStr().GetStr());
 
   kubetee::common::DataBytes mnonce(report->mnonce,
                                     CSV_ATTESTATION_MNONCE_SIZE);

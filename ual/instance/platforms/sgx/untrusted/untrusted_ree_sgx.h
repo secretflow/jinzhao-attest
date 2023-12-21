@@ -24,6 +24,14 @@ class ReeInstanceSgx : public ReeInstanceInterface {
                       google::protobuf::Message* response);
   TeeErrorCode TeePublicKey(const std::string& tee_identity,
                             std::string* public_key) override;
+  TeeErrorCode SealData(const std::string& tee_identity,
+                        const std::string& plain_str,
+                        std::string* sealed_str,
+                        bool tee_bound = true) override;
+  TeeErrorCode UnsealData(const std::string& tee_identity,
+                          const std::string& sealed_str,
+                          std::string* plain_str) override;
+
  private:
   TeeErrorCode EnclaveIdToTeeIdentity(const sgx_enclave_id_t eid,
                                       std::string* tee_identity);

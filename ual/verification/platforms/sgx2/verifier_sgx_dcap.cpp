@@ -7,16 +7,18 @@
 #include "openssl/err.h"
 #include "openssl/pem.h"
 
+#include "./sgx_dcap_qv_internal.h"
+#include "./sgx_qve_header.h"
+
 #include "attestation/common/bytes.h"
 #include "attestation/common/error.h"
 #include "attestation/common/log.h"
-#include "attestation/common/platforms/sgx_report_body.h"
 #include "attestation/common/protobuf.h"
 #include "attestation/common/rsa.h"
 #include "attestation/common/scope.h"
 #include "attestation/common/type.h"
+#include "attestation/platforms/sgx_report_body.h"
 
-#include "verification/platforms/sgx2/qvl/include/sgx_dcap_qv_internal.h"
 #include "verification/platforms/sgx2/verifier_sgx_dcap.h"
 
 namespace kubetee {
@@ -27,7 +29,6 @@ TeeErrorCode AttestationVerifierSgxDcap::Initialize(
   if (!report.json_nested_reports().empty()) {
     JSON2PB(report.json_nested_reports(), &nested_reports_);
   }
-  verify_spid_ = false;
   report_type_ = report.str_report_type();
 
   // Check the platform
@@ -91,7 +92,7 @@ TeeErrorCode AttestationVerifierSgxDcap::ParseQuoteReportBody() {
   TEE_CHECK_NULLPTR(pquote);
 
   sgx_report_body_t* report_body = &(pquote->report_body);
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(report_body, &attributes_));
 
@@ -119,6 +120,7 @@ TeeErrorCode AttestationVerifierSgxDcap::InitializeCollateralData(
     const kubetee::SgxQlQveCollateral& collateral,
     sgx_ql_qve_collateral_t* collateral_data) {
   collateral_data->version = collateral.version();
+  collateral_data->tee_type = collateral.tee_type();
 
   // Set the sgx_ql_qve_collateral_t with data pointer and size
   // clang-format off
@@ -185,8 +187,8 @@ TeeErrorCode AttestationVerifierSgxDcap::QvlVerifyReport(
   TEE_CHECK_RETURN(InitializeCollateralData(collateral, &collateral_data));
 
   // Get the supplemental data size
-  std::string supplemental;
-  TEE_CHECK_RETURN(QvlInitializeSupplementalData(&supplemental));
+  // std::string supplemental;
+  // TEE_CHECK_RETURN(QvlInitializeSupplementalData(&supplemental));
 
   // set current time. Using a small time number as workaround here.
   // In production mode a trusted time should be used.
@@ -205,8 +207,7 @@ TeeErrorCode AttestationVerifierSgxDcap::QvlVerifyReport(
       pquote, SCAST(uint32_t, quote_size), &collateral_data, current_time,
       &collateral_expiration_status, &quote_verification_result,
       NULL,  // qve_report_info is NULL means qvl mode
-      SCAST(uint32_t, supplemental.size()),
-      RCCAST(uint8_t*, supplemental.data()));
+      0, NULL);
   if (dcap_ret != SGX_QL_SUCCESS) {
     ELOG_ERROR("Fail to verify dcap quote: 0x%04x\n", dcap_ret);
     return TEE_ERROR_RA_VERIFY_DCAP_QUOTE;

@@ -42,7 +42,8 @@ The following table shows all the TEE platforms we currently support, and the su
 | Intel SGX2               | Yes            | Yes              |
 | HyperEnclave             | Yes            | Yes              |
 | Kunpeng Trustzone        | No             | Yes              |
-| Hygon CSV                | No             | Yes              |
+| Hygon CSV                | Yes            | Yes              |
+| Intel TDX                | Yes            | Yes              |
 
 
 # Quick Start
@@ -69,13 +70,28 @@ In the development environment container, run the following command:
 ./build.sh --with-samples --mode SIM
 ```
 
-NOTES: SIM mode is used here, which means you can try the quick start
+NOTE: SIM mode is used here, which means you can try the quick start
 in the environment without TEE. If you want to try it in real TEE,
 you need to setup the TEE and configure remote attestation firstly.
 For example, in SGX2 platform, you need to register the platform to PCCS,
 and set the PCCS URL in /etc/sgx_default_qcnl.conf and in
 /etc/kubetee/unified_attestation.json (or by environment variable UA_ENV_PCCS_URL).
 For How to setup the PCCS, please refer to [Intel DCAP document](https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs).
+
+
+## The other build command examples
+
+```
+# Occlum LibOS build environment for SGX1/SGX2/HyperEnclave
+./dockerenv.sh --init --occlum
+./dockerenv.sh --exec --occlum
+./build.sh --with-samples --envtype OCCLUM
+
+# Ubuntu build environment for Hygon CSV or Intel TDX VM TEE
+./dockerenv.sh --init --ubuntu --csv|--tdx
+./dockerenv.sh --exec --ubuntu --csv|--tdx
+./build.sh --with-samples --envtype VMTEE --teetype CSV|TDX
+```
 
 ## Run the sample code
 
@@ -89,6 +105,10 @@ cd build/out
 ./app-sample-unified-attestation-generation
 ./app-sample-unified-attestation-verification-untrusted
 ```
+
+NOTE： If the sample applications are built with OCCLUM envtype (which is the default in Occlum docker images),
+you need to run the applications in Occlum runtime, please see also "tools/occlum_run_samples.sh".
+If you still want to run sample applications in build/out, please specify "--envtype SGXSDK" for SGX TEE.
 
 
 # Use UAL in your application

@@ -15,6 +15,7 @@ const char kUaPlatformSgxEpid[] = "SGX_EPID";
 const char kUaPlatformSgxDcap[] = "SGX_DCAP";
 const char kUaPlatformHyperEnclave[] = "HyperEnclave";
 const char kUaPlatformCsv[] = "CSV";
+const char kUaPlatformTdx[] = "TDX";
 const char kUaPlatformKunpeng[] = "Kunpeng";
 
 const char kUaReportTypeBgcheck[] = "BackgroundCheck";
@@ -27,6 +28,8 @@ const char kUaAttrPlatformSwVer[] = "PLATFORMSWVERSION";
 const char kUaAttrSecureFlags[] = "SECUREFLAGS";
 const char kUaAttrMrplatform[] = "MRPLATFORM";
 const char kUaAttrMrboot[] = "MRBOOT";
+const char kUaAttrTeeName[] = "TEENAME";
+const char kUaAttrTeeID[] = "TEEIDENTITY";
 const char kUaAttrMrTa[] = "MRTRUSTAPP";
 const char kUaAttrMrTaDyn[] = "MRTRUSTAPPDYN";
 const char kUaAttrSigner[] = "SIGNER";
@@ -37,14 +40,18 @@ const char kUaAttrUserData[] = "USERDATA";
 const char kUaAttrPublickey[] = "PUBLICKEY";
 const char kUaAttrNonce[] = "NONCE";
 const char kUaAttrSpid[] = "SPID";
+const char kUaAttrVerifiedTime[] = "VERIFIEDTIME";
+
+const char kUaNestedGroupName[] = "GROUPNAME";
+const char kUaNestedGroupID[] = "GROUPID";
 
 const int kUaReportSizeBgcheck = 8192;
 const int kUaReportSizePassport = 20480;
 const int kUaReportSizeUas = 8192;
 
-// when generation ra report for occlum, Eid is not used
+// when generation ra report for occlum/VMTEE, Eid is not used
 // But the interfaces need a eid, so define this dummy one
-const char kOcclumDummyTeeIdentity[] = "1234";
+const char kDummyTeeIdentity[] = "1234";
 
 // Empty TEE identity
 const char kEmptyTeeIdentity[] = "0";

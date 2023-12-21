@@ -5,12 +5,11 @@
 #include <vector>
 
 #include "./sgx_error.h"
+#include "./sgx_ql_lib_common.h"
 #include "./sgx_quote_3.h"
 #include "./sgx_report.h"
 
 #include "./pccs.pb.h"
-
-#include "verification/platforms/sgx2/qvl/include/sgx_ql_lib_common.h"
 
 #include "attestation/common/bytes.h"
 #include "attestation/verification/core/verifier_interface.h"

@@ -22,12 +22,23 @@ int GenerateAuthReportJson(const std::string& report_type) {
     UaReportGenerationParameters report_param;
     report_param.tee_identity = tee_identity;
     report_param.report_type = report_type;
+    TEE_LOG_INFO("Report type: %s", report_type.c_str());
     // Both report nonce and user data use hex string
     // and will be decoded before saved in report.
     // In SGX liked TEE, they are saved into the same place,
     // So we cannot set them at the same tiime
     report_param.report_hex_nonce = "31323334";
     // report_param.others.set_hex_user_data("31323334");
+    // Cross test: use user public key for passport type
+    if (report_type == kUaReportTypePassport) {
+      std::string prvkey;
+      std::string pubkey;
+      kubetee::common::AsymmetricCrypto::GenerateKeyPair(&pubkey, &prvkey);
+      kubetee::common::DataBytes pubkey_hash(pubkey);
+      pubkey_hash.ToSHA256().ToHexStr().Void();
+      TEE_LOG_INFO("User public key hash: %s", pubkey_hash.GetStr().c_str());
+      report_param.others.set_pem_public_key(pubkey);
+    }
     std::string auth_json;
     ret = UaGenerateAuthReportJson(&report_param, &auth_json);
     if (ret != 0) {
@@ -53,6 +64,17 @@ int GenerateAuthReportJson(const std::string& report_type) {
     std::string policy_filename = "unified_attestation_auth_policy_";
     policy_filename.append(report_type + ".json");
     ret = kubetee::utils::FsWriteString(policy_filename, policy_json);
+
+    // To test the verify policy interface only
+    kubetee::UnifiedAttestationPolicy expected_policy;
+    expected_policy.CopyFrom(policy);
+    // make some changes
+    expected_policy.add_main_attributes()->CopyFrom(
+        policy.main_attributes()[0]);
+    expected_policy.mutable_main_attributes(1)->clear_hex_ta_measurement();
+    TEE_CHECK_RETURN(UaVerifyPolicy(policy, expected_policy));
+    TEE_LOG_INFO("Verify policy successfully!");
+
   } while (0);
 
   TEE_CHECK_RETURN(ReeInstance::Finalize(tee_identity));

@@ -104,46 +104,24 @@ TeeErrorCode UaGetReportAttrJson(const std::string& report_json,
   return TEE_SUCCESS;
 }
 
-/// C++ API to verify the reports of submodule attesters
-TeeErrorCode UaVerifySubReports(
-    const kubetee::UnifiedAttestationAuthReports& auth_reports,
-    const kubetee::UnifiedAttestationPolicy& policy,
-    std::string* nested_reports_json) {
-  if (auth_reports.reports_size() != policy.nested_policies_size()) {
-    ELOG_ERROR("%d reports mismatch %d policies", auth_reports.reports_size(),
-               policy.nested_policies_size());
-    return TEE_ERROR_RA_VERIFY_NESTED_POLICIES_SIZE;
-  }
+/// @brief C++ API to verify policy itself
+TeeErrorCode UaVerifyPolicy(
+    const kubetee::UnifiedAttestationPolicy& actual_policy,
+    const kubetee::UnifiedAttestationPolicy& expected_policy) {
+  TEE_CHECK_RETURN(
+      kubetee::attestation::AttestationVerifierInterface::VerifyPolicy(
+          actual_policy, expected_policy));
+  return TEE_SUCCESS;
+}
 
-  kubetee::UnifiedAttestationNestedResults results;
-  for (int i = 0; i < auth_reports.reports_size(); i++) {
-    kubetee::UnifiedAttestationAuthReport auth;
-    JSON2PB(auth_reports.reports()[i], &auth);
-    kubetee::UnifiedAttestationPolicy verify_policy;
-    verify_policy.set_pem_public_key(auth.pem_public_key());
-    const kubetee::UnifiedAttestationNestedPolicy& nested_policy =
-        policy.nested_policies()[i];
-    for (int j = 0; j < nested_policy.sub_attributes_size(); j++) {
-      verify_policy.add_main_attributes()->CopyFrom(
-          nested_policy.sub_attributes()[j]);
-    }
-    kubetee::attestation::AttestationVerifier verifier;
-    TEE_CHECK_RETURN(verifier.Initialize(auth.report()));
-    TEE_CHECK_RETURN(verifier.Verify(verify_policy));
-    TEE_CHECK_RETURN(verifier.GetAttesterAttr(results.add_results()));
-  }
+TeeErrorCode UaVerifyPolicyJson(const std::string& actual_policy_json,
+                                const std::string& expected_policy_json) {
+  kubetee::UnifiedAttestationPolicy actual_policy;
+  kubetee::UnifiedAttestationPolicy expected_policy;
+  JSON2PB(actual_policy_json, &actual_policy);
+  JSON2PB(expected_policy_json, &expected_policy);
 
-  kubetee::UnifiedAttestationNestedReports nested_reports;
-  PB2JSON(results, nested_reports.mutable_json_nested_results());
-
-  // Add the signature of submodule enclaves
-  std::string signature;
-  TEE_CHECK_RETURN(kubetee::common::RsaCrypto::Sign(
-      UakPrivate(), nested_reports.json_nested_results(), &signature));
-  kubetee::common::DataBytes b64_signature(signature);
-  nested_reports.set_b64_nested_signature(b64_signature.ToBase64().GetStr());
-
-  PB2JSON(nested_reports, nested_reports_json);
+  TEE_CHECK_RETURN(UaVerifyPolicy(actual_policy, expected_policy));
   return TEE_SUCCESS;
 }
 

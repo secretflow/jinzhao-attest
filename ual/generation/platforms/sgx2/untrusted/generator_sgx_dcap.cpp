@@ -9,14 +9,14 @@
 
 #include "attestation/common/bytes.h"
 #include "attestation/common/log.h"
-#include "attestation/common/platforms/sgx_report_body.h"
 #include "attestation/common/protobuf.h"
 #include "attestation/common/rsa.h"
 #include "attestation/common/type.h"
 #include "attestation/common/uak.h"
+#include "attestation/platforms/sgx_report_body.h"
 #include "attestation/verification/ua_verification.h"
 
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
 #include "generation/platforms/sgx_common/untrusted/untrusted_sgx_common_ecall.h"
 #else
 #include "attestation/instance/trusted_tee_instance.h"
@@ -56,7 +56,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::Initialize(
   return TEE_SUCCESS;
 }
 
-#ifdef ENV_TYPE_SGXSDK
+#ifdef UA_ENV_TYPE_SGXSDK
 TeeErrorCode AttestationGeneratorSgxDcap::LoadInProcQe() {
   // Following functions are valid in Linux in-proc mode only.
   // sgx_qe_set_enclave_load_policy is optional and the default
@@ -124,7 +124,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::GetSgxReport(
   // Prepare report data
   sgx_report_data_t report_data;
   size_t len = sizeof(sgx_report_data_t);
-  TEE_CHECK_RETURN(PrepareSgxReportData(param, report_data.d, len));
+  TEE_CHECK_RETURN(PrepareReportData(param, report_data.d, len));
 
   // Create the sgx report in enclave side
   TeeErrorCode ret = TEE_ERROR_GENERIC;
@@ -139,7 +139,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::GetSgxReport(
   }
 
   // save the attester attributes
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(&(report_.body), &attributes_));
   attributes_.set_hex_spid(hex_spid);
@@ -207,7 +207,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::GetQuote(
 }
 #endif
 
-#ifdef ENV_TYPE_OCCLUM
+#ifdef UA_ENV_TYPE_OCCLUM
 // For Occlum LibOS environment
 TeeErrorCode AttestationGeneratorSgxDcap::GetQuote(
     const UaReportGenerationParameters& param, std::string* quote) {
@@ -228,11 +228,10 @@ TeeErrorCode AttestationGeneratorSgxDcap::GetQuote(
   // prepare report data for getting quote
   sgx_report_data_t report_data = {0};
   size_t len = sizeof(sgx_report_data_t);
-  TEE_CHECK_RETURN(PrepareSgxReportData(param, report_data.d, len));
+  TEE_CHECK_RETURN(PrepareReportData(param, report_data.d, len));
   // Replace the higher 32 bytes by HASH UAK public key
-  const std::string& ua_public_key = UakPublic();
-  if (!ua_public_key.empty()) {
-    kubetee::common::DataBytes pubkey(ua_public_key);
+  if (param.others.pem_public_key().empty() && !UakPublic().empty()) {
+    kubetee::common::DataBytes pubkey(UakPublic());
     pubkey.ToSHA256().Export(report_data.d + kSha256Size, kSha256Size).Void();
   }
 
@@ -252,7 +251,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::GetQuote(
 
   // Parse the attester attributes
   sgx_quote3_t* quote_ptr = RCCAST(sgx_quote3_t*, quote->data());
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(report_body_parser.ParseReportBody(&(quote_ptr->report_body),
                                                       &attributes_));
   attributes_.set_hex_spid(param.others.hex_spid());
@@ -292,7 +291,7 @@ TeeErrorCode AttestationGeneratorSgxDcap::CreatePassportReport(
   // Get the quote verification collateral
   kubetee::SgxQlQveCollateral collateral;
   PccsClient pccs_client;
-  TEE_CHECK_RETURN(pccs_client.GetCollateral(quote, &collateral));
+  TEE_CHECK_RETURN(pccs_client.GetSgxCollateral(quote, &collateral));
 
   // Convent quote to base64 format and prepare DcapReport
   kubetee::DcapReport dcap_report;
@@ -307,20 +306,6 @@ TeeErrorCode AttestationGeneratorSgxDcap::CreatePassportReport(
   report->set_str_report_type(kUaReportTypePassport);
   PB2JSON(dcap_report, report->mutable_json_report());
 
-  return TEE_SUCCESS;
-}
-
-TeeErrorCode AttestationGeneratorSgxDcap::VerifySubReportsTrusted(
-    const kubetee::UnifiedAttestationAuthReports& auth_reports,
-    const kubetee::UnifiedAttestationPolicy& policy,
-    std::string* results_json) {
-#ifdef ENV_TYPE_SGXSDK
-  std::string tee_identity = std::to_string(enclave_id_);
-  TEE_CHECK_RETURN(
-      SgxVerifySubReports(tee_identity, auth_reports, policy, results_json));
-#else
-  TEE_CHECK_RETURN(UaVerifySubReports(auth_reports, policy, results_json));
-#endif
   return TEE_SUCCESS;
 }
 

@@ -21,7 +21,7 @@ TeeErrorCode ReportConvert::SgxDcapBgcheckToPassPortReport(
   std::string quote = b64_qoute_bytes.FromBase64().GetStr();
   kubetee::attestation::PccsClient pccs_client;
   kubetee::SgxQlQveCollateral collateral;
-  TEE_CHECK_RETURN(pccs_client.GetCollateral(quote, &collateral));
+  TEE_CHECK_RETURN(pccs_client.GetSgxCollateral(quote, &collateral));
   TEE_LOG_DEBUG("Get collateral from pccs success");
 
   PB2JSON(collateral, dcap_report.mutable_json_collateral());
@@ -53,14 +53,55 @@ TeeErrorCode ReportConvert::SgxEpidBgcheckToPassPortReport(
 
 TeeErrorCode ReportConvert::HyperEnclaveBgcheckToPassPortReport(
     kubetee::UnifiedAttestationReport* report) {
-  TEE_LOG_INFO("hyperenclave platform report convert, do nothing");
+  TEE_LOG_DEBUG("hyperenclave platform report convert, do nothing");
+  report->set_str_report_type(kUaReportTypePassport);
+  return TEE_SUCCESS;
+}
+
+TeeErrorCode ReportConvert::CsvBgcheckToPassPortReport(
+    kubetee::UnifiedAttestationReport* report) {
+  // Get the chip id from report
+  kubetee::HygonCsvReport csv_report;
+  JSON2PB(report->json_report(), &csv_report);
+
+  // For CSV, the external reference data is HSK and CEK
+  // Get the HSK and CEK from Hygon KDS
+  kubetee::HygonCsvCertChain csv_certs;
+  RaHygonKdsClient hygon_kds_client;
+  TEE_CHECK_RETURN(
+      hygon_kds_client.GetCsvHskCek(csv_report.str_chip_id(), &csv_certs));
+  PB2JSON(csv_certs, csv_report.mutable_json_cert_chain());
+
+  report->set_str_report_type(kUaReportTypePassport);
+  PB2JSON(csv_report, report->mutable_json_report());
+  return TEE_SUCCESS;
+}
+
+TeeErrorCode ReportConvert::TdxBgcheckToPassPortReport(
+    kubetee::UnifiedAttestationReport* report) {
+  std::string* json_report = report->mutable_json_report();
+  kubetee::IntelTdxReport tdx_report;
+  JSON2PB(*json_report, &tdx_report);
+  if (tdx_report.b64_quote().empty()) {
+    TEE_LOG_ERROR("tdx_report.b64_quote can not be null");
+    return TEE_ERROR_CONVERT_INFO_EMPTY;
+  }
+  kubetee::common::DataBytes b64_qoute_bytes(tdx_report.b64_quote());
+  std::string quote = b64_qoute_bytes.FromBase64().GetStr();
+  kubetee::attestation::PccsClient pccs_client;
+  kubetee::SgxQlQveCollateral collateral;
+  TEE_CHECK_RETURN(pccs_client.GetTdxCollateral(quote, &collateral));
+  TEE_LOG_DEBUG("Get collateral from pccs success");
+
+  PB2JSON(collateral, tdx_report.mutable_json_collateral());
+  PB2JSON(tdx_report, json_report);
   report->set_str_report_type(kUaReportTypePassport);
   return TEE_SUCCESS;
 }
 
 TeeErrorCode ReportConvert::KunpengBgcheckToPassPortReport(
     kubetee::UnifiedAttestationReport* report) {
-  TEE_LOG_INFO("Huawei Kunpeng platform report convert, do nothing");
+  TEE_LOG_DEBUG("Huawei Kunpeng platform report convert, do nothing");
   report->set_str_report_type(kUaReportTypePassport);
   return TEE_SUCCESS;
 }
@@ -84,6 +125,10 @@ TeeErrorCode ReportConvert::BgcheckToPassport(
     TEE_CHECK_RETURN(SgxEpidBgcheckToPassPortReport(report));
   } else if (platform == kUaPlatformHyperEnclave) {
     TEE_CHECK_RETURN(HyperEnclaveBgcheckToPassPortReport(report));
+  } else if (platform == kUaPlatformCsv) {
+    TEE_CHECK_RETURN(CsvBgcheckToPassPortReport(report));
+  } else if (platform == kUaPlatformTdx) {
+    TEE_CHECK_RETURN(TdxBgcheckToPassPortReport(report));
   } else if (platform == kUaPlatformKunpeng) {
     TEE_CHECK_RETURN(KunpengBgcheckToPassPortReport(report));
   } else {

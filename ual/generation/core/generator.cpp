@@ -9,14 +9,20 @@
 
 #include "network/report_convert.h"
 
-#ifdef TEE_TYPE_HYPERENCLAVE
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
 #include "generation/platforms/hyperenclave/untrusted/generator_hyperenclave.h"
 #endif
-#ifdef TEE_TYPE_SGX2
+#ifdef UA_TEE_TYPE_SGX2
 #include "generation/platforms/sgx2/untrusted/generator_sgx_dcap.h"
 #endif
-#ifdef TEE_TYPE_SGX1
+#ifdef UA_TEE_TYPE_SGX1
 #include "generation/platforms/sgx1/untrusted/generator_sgx_epid.h"
+#endif
+#ifdef UA_TEE_TYPE_CSV
+#include "generation/platforms/csv/generator_csv.h"
+#endif
+#ifdef UA_TEE_TYPE_TDX
+#include "generation/platforms/tdx/generator_tdx.h"
 #endif
 
 namespace kubetee {
@@ -27,46 +33,59 @@ TeeErrorCode AttestationGenerator::Initialize(const std::string& tee_identity) {
 
 #ifdef SGX_MODE_SIM
   TEE_LOG_DEBUG("Process Running on SGX SIM environment");
-#ifndef TEE_TYPE_SGX1
-  TEE_LOG_ERROR("SGX SIM MODE can only use TEE_TYPE_SGX1");
+#ifndef UA_TEE_TYPE_SGX1
+  TEE_LOG_ERROR("SGX SIM MODE can only use UA_TEE_TYPE_SGX1");
   return TEE_ERROR_UNSUPPORTED_TEE;
 #endif
 #endif
   // Check the TEE device
   if (false) {
     // Just for if-else beginning
-#ifdef ENV_TYPE_OCCLUM
+#ifdef UA_ENV_TYPE_OCCLUM
   } else if (FsFileExists("/dev/sgx")) {
     TEE_LOG_DEBUG("TEE device for Occlum LibOS");
 #endif
-#ifdef TEE_TYPE_HYPERENCLAVE
-  } else if (FsFileExists("/dev/jailhouse")) {
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
+  } else if (FsFileExists("/dev/jailhouse") ||
+             FsFileExists("/dev/hyperenclave")) {
     TEE_LOG_DEBUG("TEE device for HyperEnclave platform");
 #endif
-#ifdef TEE_TYPE_SGX2
+#ifdef UA_TEE_TYPE_SGX2
   } else if (FsFileExists("/dev/sgx_enclave") ||
              FsFileExists("/dev/sgx/enclave")) {
     TEE_LOG_DEBUG("TEE device for SGX2 platform");
 #endif
-#ifdef TEE_TYPE_SGX1
+#ifdef UA_TEE_TYPE_SGX1
   } else if (FsFileExists("/dev/isgx")) {
     TEE_LOG_DEBUG("TEE device for SGX1 platform");
 #endif
   } else {
+#ifdef UA_TEE_TYPE_CSV
+    TEE_LOG_DEBUG("Hygon CSV TEE platform");
+#elif defined(UA_TEE_TYPE_TDX)
+    TEE_LOG_DEBUG("Intel TDX TEE platform");
+#else
 #ifndef SGX_MODE_SIM
     TEE_LOG_ERROR("Unsupported trusted execution environment");
     return TEE_ERROR_UNSUPPORTED_TEE;
 #endif
+#endif
   }
 
-#ifdef TEE_TYPE_HYPERENCLAVE
+#ifdef UA_TEE_TYPE_HYPERENCLAVE
   inner_ = std::make_shared<AttestationGeneratorHyperEnclave>();
 #endif
-#ifdef TEE_TYPE_SGX2
+#ifdef UA_TEE_TYPE_SGX2
   inner_ = std::make_shared<AttestationGeneratorSgxDcap>();
 #endif
-#ifdef TEE_TYPE_SGX1
+#ifdef UA_TEE_TYPE_SGX1
   inner_ = std::make_shared<AttestationGeneratorSgxEpid>();
+#endif
+#ifdef UA_TEE_TYPE_CSV
+  inner_ = std::make_shared<AttestationGeneratorCsv>();
+#endif
+#ifdef UA_TEE_TYPE_TDX
+  inner_ = std::make_shared<AttestationGeneratorTdx>();
 #endif
 
   TEE_CHECK_RETURN(inner_->Initialize(tee_identity));
@@ -90,15 +109,6 @@ TeeErrorCode AttestationGenerator::GenerateReport(
     return TEE_ERROR_RA_REPORT_TYPE;
   }
   report->set_str_report_version(kCurrentUarVersion);
-  return TEE_SUCCESS;
-}
-
-TeeErrorCode AttestationGenerator::VerifySubReportsTrusted(
-    const kubetee::UnifiedAttestationAuthReports& auth_reports,
-    const kubetee::UnifiedAttestationPolicy& policy,
-    std::string* results_json) {
-  TEE_CHECK_RETURN(
-      inner_->VerifySubReportsTrusted(auth_reports, policy, results_json));
   return TEE_SUCCESS;
 }
 

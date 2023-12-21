@@ -9,11 +9,11 @@
 #include "attestation/common/bytes.h"
 #include "attestation/common/error.h"
 #include "attestation/common/log.h"
-#include "attestation/common/platforms/sgx_report_body.h"
 #include "attestation/common/protobuf.h"
 #include "attestation/common/rsa.h"
 #include "attestation/common/scope.h"
 #include "attestation/common/type.h"
+#include "attestation/platforms/sgx_report_body.h"
 
 #include "verification/platforms/sgx1/verifier_sgx_epid.h"
 
@@ -69,7 +69,6 @@ TeeErrorCode AttestationVerifierSgxEpid::Initialize(
   if (!report.json_nested_reports().empty()) {
     JSON2PB(report.json_nested_reports(), &nested_reports_);
   }
-  verify_spid_ = true;
   report_type_ = report.str_report_type();
 
   // Check the platform
@@ -361,7 +360,7 @@ TeeErrorCode AttestationVerifierSgxEpid::ParseQuoteReportBody(
     sgx_quote_t* pquote) {
   TEE_CHECK_NULLPTR(pquote);
   sgx_report_body_t* report_body = &(pquote->report_body);
-  kubetee::common::platforms::ReportBodyParser report_body_parser;
+  kubetee::common::platforms::SgxReportBodyParser report_body_parser;
   TEE_CHECK_RETURN(
       report_body_parser.ParseReportBody(report_body, &attributes_));
   return TEE_SUCCESS;
