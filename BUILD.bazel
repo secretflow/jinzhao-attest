@@ -232,8 +232,8 @@ cc_library(
 
 cc_library(
     name = "sgx2_qvl_parser_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationParsers/include/**/*.h"]),
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationParsers/include",
+    hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/include/**/*.h"]),
+    strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/include",
 )
 
 
