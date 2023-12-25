@@ -20,14 +20,14 @@ config_setting(
 cc_library(
     name = "generation",
     srcs = glob([
-        "ual/generation/core/**/*.cpp",
+        "ual/generation/core/*.cpp",
         "ual/generation/platforms/sgx2/**/*.cpp",
-        "ual/generation/untrusted/**/*.cpp",
+        "ual/generation/untrusted/*.cpp",
     ]),
-    copts = ["-DENV_TYPE_OCCLUM"] + select({
-        ":hyper": ["-DTEE_TYPE_HYPERENCLAVE"],
-        ":sgx1": ["-DTEE_TYPE_SGX1"],
-        ":sgx2": ["-DTEE_TYPE_SGX2"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"] + select({
+        ":hyper": ["-DUA_TEE_TYPE_HYPERENCLAVE"],
+        ":sgx1": ["-DUA_TEE_TYPE_SGX1"],
+        ":sgx2": ["-DUA_TEE_TYPE_SGX2"],
         "//conditions:default": [],
     }),
     strip_include_prefix = "ual",
@@ -43,11 +43,11 @@ cc_library(
 cc_library(
     name = "verification",
     srcs = glob([
-        "ual/verification/core/**/*.cpp",
+        "ual/verification/core/*.cpp",
         "ual/verification/platforms/**/*.cpp",
         "ual/verification/uas/**/*.cpp",
     ]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     deps = [
         ":network",
         ":sgx2_qvl_headers",
@@ -62,14 +62,14 @@ cc_binary(
         "ual/verification/platforms/**/*.cpp",
         "ual/verification/uas/**/*.cpp",
     ]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    linkshared = True,
+    linkstatic = True,
     deps = [
         ":network",
         ":sgx2_qvl_headers",
         ":verification_headers",
     ],
-    linkshared = True,
-    linkstatic = True,
 )
 
 cc_binary(
@@ -80,25 +80,25 @@ cc_binary(
         "ual/generation/trusted/*.cpp",
         "ual/generation/untrusted/**/*.cpp",
     ]),
-    copts = ["-DENV_TYPE_OCCLUM"] + select({
-        ":hyper": ["-DTEE_TYPE_HYPERENCLAVE"],
-        ":sgx1": ["-DTEE_TYPE_SGX1"],
-        ":sgx2": ["-DTEE_TYPE_SGX2"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"] + select({
+        ":hyper": ["-DUA_TEE_TYPE_HYPERENCLAVE"],
+        ":sgx1": ["-DUA_TEE_TYPE_SGX1"],
+        ":sgx2": ["-DUA_TEE_TYPE_SGX2"],
         "//conditions:default": [],
     }),
-    deps = [
-        ":generation_headers",
-        ":network",
-        ":instance"
-    ],
     linkshared = True,
     linkstatic = True,
+    deps = [
+        ":generation_headers",
+        ":instance",
+        ":network",
+    ],
 )
 
 cc_library(
     name = "network",
     srcs = glob(["ual/network/**/*.cpp"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     visibility = ["//visibility:public"],
     deps = [
         ":common",
@@ -111,8 +111,8 @@ cc_library(
     name = "instance",
     srcs = glob(["ual/instance/**/*.cpp"]),
     hdrs = glob(["ual/instance/**/*.h"]),
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual",
-    copts = ["-DENV_TYPE_OCCLUM"],
     visibility = ["//visibility:public"],
     deps = [
         ":common",
@@ -133,108 +133,120 @@ cc_library(
         "ual/include/network/**/*.h",
         "ual/include/grpc/**/*.h",
     ]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/include",
     visibility = ["//visibility:public"],
     deps = [
         ":cc_attestation_proto",
-        "@cppcodec",
-        "@com_github_rapidjson//:rapidjson",
-        ":sgx_headers",
-        "@com_github_openssl_openssl//:openssl",
+        ":sgx2_qvl_headers",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_github_openssl_openssl//:openssl",
+        "@com_github_rapidjson//:rapidjson",
+        "@cppcodec",
     ],
 )
 
 cc_library(
     name = "verification_headers",
     hdrs = glob(["ual/verification/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual",
 )
 
 cc_library(
     name = "generation_headers",
     hdrs = glob(["ual/generation/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual",
 )
 
 cc_library(
     name = "sgx2_qvl",
     srcs = glob([
-        "ual/verification/platforms/sgx2/qvl/**/*.cpp",
-    ]),
+        "ual/verification/platforms/sgx2/Utils/*.cpp",
+        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src/*.cpp",
+        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/*.cpp",
+        "ual/verification/platforms/sgx2/*.cpp",
+    ]) + ["ual/external/dcap/QuoteVerification/QvE/Enclave/qve.cpp"],
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_rapidjson//:rapidjson",
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
+        "@com_github_rapidjson//:rapidjson",
     ],
 )
 
 cc_library(
     name = "sgx2_qvl_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/include/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/include",
+    hdrs = glob(["ual/external/dcap/QuoteGeneration/quote_wrapper/common/inc/*.h"]),
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    strip_include_prefix = "ual/external/dcap/QuoteGeneration/quote_wrapper/common/inc",
     deps = [
+        ":sgx2_qv_dcap_qv_headers",
+        ":sgx2_qve_headers",
         ":sgx2_qvl_common_headers",
+        ":sgx2_qvl_utils_headers",
         ":sgx2_qvl_lib2_headers",
         ":sgx2_qvl_lib_headers",
         ":sgx2_qvl_parser2_headers",
         ":sgx2_qvl_parser_headers",
-        ":sgx2_qvl_utils_headers",
         ":sgx_headers",
     ],
 )
 
 cc_library(
-    name = "sgx2_qvl_common_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationCommons/include/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationCommons/include",
+  name = "sgx2_qv_dcap_qv_headers",
+  hdrs = glob(["ual/external/dcap/QuoteVerification/dcap_quoteverify/inc/*.h"]),
+  strip_include_prefix = "ual/external/dcap/QuoteVerification/dcap_quoteverify/inc",
+)
+
+cc_library(
+  name = "sgx2_qve_headers",
+  hdrs = glob(["ual/external/dcap/QuoteVerification/QvE/Include/**/*.h"]),
+  strip_include_prefix = "ual/external/dcap/QuoteVerification/QvE/Include",
+)
+
+cc_library(
+  name = "sgx2_qvl_common_headers",
+  hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationCommons/include/**/*.h"]),
+  strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationCommons/include",
+)
+
+cc_library(
+    name = "sgx2_qvl_utils_headers",
+    hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationCommons/include/Utils/*.h"]),
+    strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationCommons/include/Utils",
 )
 
 cc_library(
     name = "sgx2_qvl_lib_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationLibrary/include/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationLibrary/include",
+    hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/include/**/*.h"]),
+    strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/include",
+)
+
+cc_library(
+    name = "sgx2_qvl_lib2_headers",
+    hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src/**/*.h"]),
+    strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src",
 )
 
 cc_library(
     name = "sgx2_qvl_parser_headers",
     hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationParsers/include/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationParsers/include",
 )
 
-cc_library(
-    name = "sgx2_qvl_lib2_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationLibrary/src/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationLibrary/src",
-)
 
 cc_library(
     name = "sgx2_qvl_parser2_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationParsers/src/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationParsers/src",
-)
-
-cc_library(
-    name = "sgx2_qvl_utils_headers",
-    hdrs = glob(["ual/verification/platforms/sgx2/qvl/AttestationCommons/include/Utils/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
-    strip_include_prefix = "ual/verification/platforms/sgx2/qvl/AttestationCommons/include/Utils",
+    hdrs = glob(["ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/**/*.h"]),
+    strip_include_prefix = "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src",
 )
 
 cc_library(
     name = "sgx_headers",
     hdrs = glob(["ual/include/sgx/**/*.h"]),
-    copts = ["-DENV_TYPE_OCCLUM"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/include/sgx",
 )
 
