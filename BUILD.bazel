@@ -3,6 +3,16 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//visibility:public"])
 
 config_setting(
+  name = "occlum",
+  values = {"define": "env_type=occlum"},
+)
+
+config_setting(
+  name = "vmtee",
+  values = {"define": "env_type=vmtee"},
+)
+
+config_setting(
     name = "hyper",
     values = {"define": "tee_type=hyper"},
 )
@@ -15,6 +25,11 @@ config_setting(
 config_setting(
     name = "sgx2",
     values = {"define": "tee_type=sgx2"},
+)
+
+config_setting(
+  name = "csv",
+  values = {"define": "tee_type=csv"},
 )
 
 cc_binary(
@@ -30,12 +45,17 @@ cc_library(
     srcs = glob([
         "ual/generation/core/*.cpp",
         "ual/generation/platforms/sgx2/**/*.cpp",
+        "ual/generation/platforms/csv/**/*.cpp",
         "ual/generation/untrusted/*.cpp",
     ]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"] + select({
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }) + select({
         ":hyper": ["-DUA_TEE_TYPE_HYPERENCLAVE"],
         ":sgx1": ["-DUA_TEE_TYPE_SGX1"],
         ":sgx2": ["-DUA_TEE_TYPE_SGX2"],
+        ":csv": ["-DUA_TEE_TYPE_CSV"],
         "//conditions:default": [],
     }),
     strip_include_prefix = "ual",
@@ -55,7 +75,10 @@ cc_library(
         "ual/verification/platforms/**/*.cpp",
         "ual/verification/uas/**/*.cpp",
     ]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }),
     deps = [
         ":network",
         ":sgx2_qvl_headers",
@@ -66,7 +89,6 @@ cc_library(
 cc_library(
     name = "network",
     srcs = glob(["ual/network/**/*.cpp"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     visibility = ["//visibility:public"],
     deps = [
         ":common",
@@ -80,7 +102,10 @@ cc_library(
     name = "instance",
     srcs = glob(["ual/instance/**/*.cpp"]),
     hdrs = glob(["ual/instance/**/*.h"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }),
     strip_include_prefix = "ual",
     visibility = ["//visibility:public"],
     deps = [
@@ -102,7 +127,10 @@ cc_library(
         "ual/include/network/**/*.h",
         "ual/include/grpc/**/*.h",
     ]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }),
     strip_include_prefix = "ual/include",
     visibility = ["//visibility:public"],
     deps = [
@@ -118,14 +146,20 @@ cc_library(
 cc_library(
     name = "verification_headers",
     hdrs = glob(["ual/verification/**/*.h"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }),
     strip_include_prefix = "ual",
 )
 
 cc_library(
     name = "generation_headers",
     hdrs = glob(["ual/generation/**/*.h"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
+    copts = select({
+      ":occlum": ["-DUA_ENV_TYPE_OCCLUM"],
+      ":vmtee": ["-DUA_ENV_TYPE_VMTEE"],
+    }),
     strip_include_prefix = "ual",
 )
 
@@ -137,7 +171,6 @@ cc_library(
         "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/**/*.cpp",
     ]) + ["ual/external/dcap/QuoteVerification/QvE/Enclave/qve.cpp"],
     visibility = ["//visibility:public"],
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     deps = [
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
@@ -148,7 +181,6 @@ cc_library(
 cc_library(
     name = "sgx2_qvl_headers",
     hdrs = glob(["ual/external/dcap/QuoteGeneration/quote_wrapper/common/inc/*.h"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/external/dcap/QuoteGeneration/quote_wrapper/common/inc",
     deps = [
         ":sgx2_qv_dcap_qv_headers",
@@ -215,7 +247,6 @@ cc_library(
 cc_library(
     name = "sgx_headers",
     hdrs = glob(["ual/include/sgx/**/*.h"]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     strip_include_prefix = "ual/include/sgx",
 )
 
