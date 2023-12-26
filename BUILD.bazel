@@ -64,46 +64,6 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "libverification.so",
-    srcs = glob([
-        "ual/verification/core/**/*.cpp",
-        "ual/verification/platforms/**/*.cpp",
-        "ual/verification/uas/**/*.cpp",
-    ]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"],
-    linkshared = True,
-    linkstatic = True,
-    deps = [
-        ":network",
-        ":sgx2_qvl_headers",
-        ":verification_headers",
-    ],
-)
-
-cc_binary(
-    name = "libgeneration.so",
-    srcs = glob([
-        "ual/generation/core/**/*.cpp",
-        "ual/generation/platforms/sgx2/**/*.cpp",
-        "ual/generation/trusted/*.cpp",
-        "ual/generation/untrusted/**/*.cpp",
-    ]),
-    copts = ["-DUA_ENV_TYPE_OCCLUM"] + select({
-        ":hyper": ["-DUA_TEE_TYPE_HYPERENCLAVE"],
-        ":sgx1": ["-DUA_TEE_TYPE_SGX1"],
-        ":sgx2": ["-DUA_TEE_TYPE_SGX2"],
-        "//conditions:default": [],
-    }),
-    linkshared = True,
-    linkstatic = True,
-    deps = [
-        ":generation_headers",
-        ":instance",
-        ":network",
-    ],
-)
-
 cc_library(
     name = "network",
     srcs = glob(["ual/network/**/*.cpp"]),
@@ -112,6 +72,7 @@ cc_library(
     deps = [
         ":common",
         ":verification_headers",
+        ":sgx2_qvl",
         "@com_github_curl//:curl",
     ],
 )
@@ -175,7 +136,6 @@ cc_library(
         "ual/verification/platforms/sgx2/Utils/*.cpp",
         "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src/*.cpp",
         "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/*.cpp",
-        "ual/verification/platforms/sgx2/*.cpp",
     ]) + ["ual/external/dcap/QuoteVerification/QvE/Enclave/qve.cpp"],
     visibility = ["//visibility:public"],
     deps = [
