@@ -22,7 +22,6 @@ cc_binary(
   srcs = ["main.cc"],
   deps = [
     ":generation",
-    ":verification",
   ]
 )
 
@@ -134,10 +133,11 @@ cc_library(
     name = "sgx2_qvl",
     srcs = glob([
         "ual/verification/platforms/sgx2/Utils/*.cpp",
-        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src/*.cpp",
-        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/*.cpp",
+        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationLibrary/src/**/*.cpp",
+        "ual/external/dcap/QuoteVerification/QVL/Src/AttestationParsers/src/**/*.cpp",
     ]) + ["ual/external/dcap/QuoteVerification/QvE/Enclave/qve.cpp"],
     visibility = ["//visibility:public"],
+    copts = ["-DUA_ENV_TYPE_OCCLUM"],
     deps = [
         ":sgx2_qvl_headers",
         "@com_github_openssl_openssl//:openssl",
