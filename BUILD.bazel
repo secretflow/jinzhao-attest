@@ -17,6 +17,15 @@ config_setting(
     values = {"define": "tee_type=sgx2"},
 )
 
+cc_binary(
+  name = "main",
+  srcs = ["main.cc"],
+  deps = [
+    ":generation",
+    ":verification",
+  ]
+)
+
 cc_library(
     name = "generation",
     srcs = glob([
